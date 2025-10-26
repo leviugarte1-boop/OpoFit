@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db, isFirebaseConfigured } from '../services/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 
 const StatusIndicator: React.FC<{ status: 'ok' | 'pending' | 'error'; label: string; details?: string }> = ({ status, label, details }) => {
@@ -25,7 +25,6 @@ const ConnectionStatus: React.FC = () => {
     const [isVisible, setIsVisible] = useState(true);
 
     useEffect(() => {
-        // 1. Check Firebase SDK Initialization
         setFirebaseInit(isFirebaseConfigured ? 'ok' : 'error');
         if (!isFirebaseConfigured) {
             setAuthStatus('error');
@@ -33,23 +32,17 @@ const ConnectionStatus: React.FC = () => {
             return;
         }
 
-        // 2. Check Auth State
-        const unsubscribeAuth = onAuthStateChanged(auth, user => {
-            setAuthStatus(user ? 'ok' : 'pending'); // pending means 'not logged in' which is fine
-        }, (error) => {
-            console.error("Auth error listener:", error);
-            setAuthStatus('error');
-        });
+        let firestoreIntervalId: number | undefined;
 
-        // 3. Check Firestore Connectivity
-        const checkFirestore = async () => {
+        const checkFirestore = async (user: FirebaseUser) => {
             if (!db) {
                 setFirestoreStatus('error');
                 return;
             }
             try {
-                // Try to read a non-existent document. This just tests connectivity without needing real data.
-                const docRef = doc(db, 'health_check', 'ping');
+                // This is a more reliable check. We try to get the user's own profile data.
+                // This test will pass if the connection is ok AND security rules are correct.
+                const docRef = doc(db, 'users', user.uid);
                 await getDoc(docRef);
                 setFirestoreStatus('ok');
             } catch (error) {
@@ -58,12 +51,31 @@ const ConnectionStatus: React.FC = () => {
             }
         };
 
-        const intervalId = setInterval(checkFirestore, 15000); // Check every 15s
-        checkFirestore(); // Initial check
+        const unsubscribeAuth = onAuthStateChanged(auth, user => {
+            if (user) {
+                setAuthStatus('ok');
+                checkFirestore(user); // Initial check on login
+                if (firestoreIntervalId) clearInterval(firestoreIntervalId);
+                firestoreIntervalId = window.setInterval(() => checkFirestore(user), 20000); // Check every 20s
+            } else {
+                setAuthStatus('pending');
+                setFirestoreStatus('pending'); // Not an error, just waiting for login
+                if (firestoreIntervalId) {
+                    clearInterval(firestoreIntervalId);
+                }
+            }
+        }, (error) => {
+            console.error("Auth error listener:", error);
+            setAuthStatus('error');
+            setFirestoreStatus('error');
+            if (firestoreIntervalId) clearInterval(firestoreIntervalId);
+        });
 
         return () => {
             unsubscribeAuth();
-            clearInterval(intervalId);
+            if (firestoreIntervalId) {
+                clearInterval(firestoreIntervalId);
+            }
         };
     }, []);
 
@@ -77,8 +89,8 @@ const ConnectionStatus: React.FC = () => {
             </div>
             <div className="space-y-1">
                 <StatusIndicator status={firebaseInit} label="SDK Firebase" details={firebaseInit === 'ok' ? 'Inicializado' : 'Error de Config'} />
-                <StatusIndicator status={authStatus} label="Autenticación" details={authStatus === 'ok' ? 'Conectado' : (authStatus === 'pending' ? 'Esperando' : 'Error')} />
-                <StatusIndicator status={firestoreStatus} label="Base de Datos" details={firestoreStatus === 'ok' ? 'Accesible' : (firestoreStatus === 'pending' ? 'Probando...' : 'Error')} />
+                <StatusIndicator status={authStatus} label="Autenticación" details={authStatus === 'ok' ? 'Conectado' : 'Desconectado'} />
+                <StatusIndicator status={firestoreStatus} label="Base de Datos" details={firestoreStatus === 'ok' ? 'Accesible' : (firestoreStatus === 'pending' ? 'Esperando auth...' : 'Error')} />
             </div>
         </div>
     );

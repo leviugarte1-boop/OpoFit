@@ -23,10 +23,11 @@ if (isFirebaseConfigured) {
   try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    // SOLUCIÓN DEFINITIVA: Usamos initializeFirestore con un caché en memoria.
-    // Esto evita los problemas con IndexedDB que causan el error "client is offline".
+    // SOLUCIÓN DEFINITIVA: Usamos initializeFirestore con un caché en memoria
+    // y forzamos long-polling para máxima compatibilidad de red.
     db = initializeFirestore(app, {
       localCache: memoryLocalCache(),
+      experimentalForceLongPolling: true,
     });
   } catch (error) {
     console.error("Error al inicializar Firebase. Revisa que tu API Key sea correcta.", error);

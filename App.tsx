@@ -196,7 +196,6 @@ const App: React.FC = () => {
                     <NavLink view="planner" label="Planificador" icon={ICONS.planner} />
                     <NavLink view="caseStudies" label="Supuestos Prácticos" icon={ICONS.caseStudies} />
                     <NavLink view="curriculum" label="Programación" icon={ICONS.curriculum} />
-                    <NavLink view="physicalTests" label="Pruebas Físicas" icon={ICONS.physicalTests} />
                     <NavLink view="admin" label="Admin" icon={ICONS.admin} adminOnly={true} />
                 </ul>
                 <div className="mt-auto">
