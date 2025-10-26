@@ -4,7 +4,6 @@ import {
     signOut,
 } from 'firebase/auth';
 import {
-    getFirestore,
     doc,
     setDoc,
     getDoc,
@@ -14,12 +13,16 @@ import {
     query,
     where,
 } from 'firebase/firestore';
-import { auth } from './firebase';
+import { auth, db } from './firebase';
 import { User, UserStatus, UserData } from '../types';
 import { SYLLABUS_TOPICS } from '../constants';
 
-const db = getFirestore();
-const usersCollection = collection(db, 'users');
+const ensureFirebaseIsConfigured = () => {
+    if (!auth || !db) {
+        throw new Error('Firebase no está configurado. Por favor, revisa el archivo `services/firebase.ts` y añade tu API key.');
+    }
+};
+
 
 const getInitialUserData = (): UserData => {
     const today = new Date();
@@ -38,6 +41,10 @@ const getInitialUserData = (): UserData => {
 };
 
 export const register = async (userData: { fullName: string; email: string; phone: string; password: string; reason?: string }) => {
+    ensureFirebaseIsConfigured();
+    // The `!` tells TypeScript that we've already checked and these are not null.
+    const usersCollection = collection(db!, 'users');
+    
     // Check if user email already exists in Firestore
     const q = query(usersCollection, where("email", "==", userData.email));
     const querySnapshot = await getDocs(q);
@@ -45,7 +52,7 @@ export const register = async (userData: { fullName: string; email: string; phon
         throw new Error('El correo electrónico ya está registrado.');
     }
     
-    const userCredential = await createUserWithEmailAndPassword(auth, userData.email, userData.password);
+    const userCredential = await createUserWithEmailAndPassword(auth!, userData.email, userData.password);
     const firebaseUser = userCredential.user;
 
     const newUser: User = {
@@ -61,17 +68,18 @@ export const register = async (userData: { fullName: string; email: string; phon
     };
 
     // Store user profile in Firestore
-    await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
+    await setDoc(doc(db!, 'users', firebaseUser.uid), newUser);
     
     // We sign the user out immediately after registration
     // so they have to wait for approval.
-    await signOut(auth);
+    await signOut(auth!);
 
     return newUser;
 };
 
 export const login = async (email: string, password: string): Promise<User> => {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    ensureFirebaseIsConfigured();
+    const userCredential = await signInWithEmailAndPassword(auth!, email, password);
     const firebaseUser = userCredential.user;
 
     const userProfile = await getUserProfile(firebaseUser.uid);
@@ -80,12 +88,12 @@ export const login = async (email: string, password: string): Promise<User> => {
     }
 
     if (userProfile.status === UserStatus.Pending) {
-        await signOut(auth);
+        await signOut(auth!);
         throw new Error('Su solicitud de acceso está pendiente de aprobación por un administrador.');
     }
 
     if (userProfile.status === UserStatus.Revoked) {
-        await signOut(auth);
+        await signOut(auth!);
         throw new Error('Su acceso a la plataforma ha sido revocado. Contacte con un administrador.');
     }
     
@@ -93,11 +101,13 @@ export const login = async (email: string, password: string): Promise<User> => {
 };
 
 export const logout = async () => {
+    if(!auth) return; // Allow logout even if db is not configured
     await signOut(auth);
 };
 
 export const getUserProfile = async (userId: string): Promise<User | null> => {
-    const userDocRef = doc(db, 'users', userId);
+    ensureFirebaseIsConfigured();
+    const userDocRef = doc(db!, 'users', userId);
     const userDocSnap = await getDoc(userDocRef);
 
     if (userDocSnap.exists()) {
@@ -108,18 +118,22 @@ export const getUserProfile = async (userId: string): Promise<User | null> => {
 };
 
 export const getAllUsers = async (): Promise<User[]> => {
+    ensureFirebaseIsConfigured();
+    const usersCollection = collection(db!, 'users');
     const querySnapshot = await getDocs(usersCollection);
     return querySnapshot.docs.map(doc => doc.data() as User);
 };
 
 export const updateUserStatus = async (userId: string, newStatus: UserStatus): Promise<User | undefined> => {
-    const userDocRef = doc(db, 'users', userId);
+    ensureFirebaseIsConfigured();
+    const userDocRef = doc(db!, 'users', userId);
     await updateDoc(userDocRef, { status: newStatus });
     return await getUserProfile(userId) ?? undefined;
 };
 
 export const updateUserData = async (userId: string, newUserData: Partial<UserData>): Promise<User | undefined> => {
-    const userDocRef = doc(db, 'users', userId);
+    ensureFirebaseIsConfigured();
+    const userDocRef = doc(db!, 'users', userId);
     const currentUser = await getUserProfile(userId);
 
     if (currentUser) {

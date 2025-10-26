@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from './services/firebase';
+import { auth, isFirebaseConfigured } from './services/firebase';
 import { ICONS } from './constants';
 import { User, UserData } from './types';
 import Dashboard from './components/Dashboard';
@@ -15,6 +15,28 @@ import * as authService from './services/authService';
 
 type View = 'dashboard' | 'syllabus' | 'planner' | 'caseStudies' | 'curriculum' | 'physicalTests' | 'admin';
 
+const FirebaseConfigError: React.FC = () => (
+    <div className="flex items-center justify-center min-h-screen bg-amber-50 dark:bg-slate-900 p-4">
+        <div className="w-full max-w-2xl bg-white dark:bg-slate-800 p-8 rounded-lg shadow-2xl border-4 border-amber-400">
+            <div className="text-center">
+                <span className="text-amber-500 text-6xl">⚠️</span>
+                <h1 className="text-3xl font-bold text-slate-800 dark:text-white mt-4 mb-2">¡Acción Requerida!</h1>
+                <p className="text-xl text-slate-600 dark:text-slate-300">Falta la configuración de Firebase.</p>
+            </div>
+            <div className="mt-6 text-slate-700 dark:text-slate-400">
+                <p className="mb-4">Para que OpoFit funcione, necesitas conectar la aplicación a tu base de datos de Firebase. ¡Solo falta un paso!</p>
+                <ol className="list-decimal list-inside space-y-2 mb-6">
+                    <li>Abre el explorador de archivos a la izquierda.</li>
+                    <li>Busca y haz clic en el archivo: <code className="bg-slate-200 dark:bg-slate-700 px-2 py-1 rounded-md font-mono text-sm">services/firebase.ts</code></li>
+                    <li>Dentro de ese archivo, reemplaza el texto <code className="bg-amber-200 dark:bg-amber-800/50 px-2 py-1 rounded-md font-mono text-sm">"TU_NUEVA_API_KEY_SECRETA_AQUI"</code> por tu clave de API web de Firebase.</li>
+                </ol>
+                <p className="text-sm text-center">Una vez que pegues la clave, la aplicación se recargará y funcionará correctamente.</p>
+            </div>
+        </div>
+    </div>
+);
+
+
 const App: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -22,6 +44,11 @@ const App: React.FC = () => {
     const [isSidebarOpen, setSidebarOpen] = useState(false);
 
     useEffect(() => {
+        if (!isFirebaseConfigured) {
+            setIsLoading(false);
+            return;
+        }
+
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
                 const userProfile = await authService.getUserProfile(firebaseUser.uid);
@@ -62,6 +89,10 @@ const App: React.FC = () => {
             }
         }
     };
+    
+    if (!isFirebaseConfigured) {
+        return <FirebaseConfigError />;
+    }
     
     if (isLoading) {
         return (

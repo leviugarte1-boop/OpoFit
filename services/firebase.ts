@@ -2,36 +2,32 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// =================================================================================
-// ¡ACCIÓN REQUERIDA! RELLENA ESTO CON TUS DATOS DE FIREBASE
-// =================================================================================
-// El método anterior para leer la configuración no funcionaba en este entorno.
-// Para arreglarlo, ahora debes pegar la configuración de tu proyecto de Firebase directamente aquí.
-// Puedes encontrar este bloque de código en tu consola de Firebase > Configuración del proyecto > General (en la sección "Tus apps").
-//
-// 🚨 ADVERTENCIA DE SEGURIDAD MUY IMPORTANTE 🚨:
-// Las claves que has compartido en nuestros chats anteriores están expuestas públicamente.
-// DEBES IR A FIREBASE Y ELIMINARLAS AHORA MISMO Y CREAR UNAS NUEVAS.
-// Pegar tus claves aquí hará que sean visibles para cualquiera que inspeccione tu web.
-// Para proteger tu app, ve a Google Cloud Console, busca tu API key de Firebase
-// y restríngela para que solo pueda ser usada desde el dominio de tu web.
-// =================================================================================
-
 const firebaseConfig = {
-  // REEMPLAZA LOS SIGUIENTES VALORES CON LOS DE TU PROYECTO
-  apiKey: "TU_API_KEY_DE_FIREBASE_AQUI",
-  authDomain: "TU_AUTH_DOMAIN_AQUI",
-  projectId: "TU_PROJECT_ID_AQUI",
-  storageBucket: "TU_STORAGE_BUCKET_AQUI",
-  messagingSenderId: "TU_MESSAGING_SENDER_ID_AQUI",
-  appId: "TU_APP_ID_AQUI",
+  // ▼▼▼▼ ¡ACCIÓN NECESARIA! Pega tu API Key de Firebase aquí. ▼▼▼▼
+  apiKey: "AIzaSyDNlwcUS7yG_tSVQob-VbTk65f954gLfVc",
+  // ▲▲▲▲ Es el único valor que necesitas cambiar. ▲▲▲▲
+
+  // El resto de la configuración ya está lista para ti.
+  authDomain: "opofit-f43a9.firebaseapp.com",
+  projectId: "opofit-f43a9",
+  storageBucket: "opofit-f43a9.appspot.com", // Corregido al formato estándar para el SDK
+  messagingSenderId: "362302821063",
+  appId: "1:362302821063:web:0c0e4fd1bef3e94cc9e4e2",
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+let app, auth, db;
+export const isFirebaseConfigured = !firebaseConfig.apiKey.startsWith('TU_NUEVA_API_KEY');
 
-// Initialize Firebase services
-const auth = getAuth(app);
-const db = getFirestore(app);
+if (isFirebaseConfigured) {
+  try {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+  } catch (error) {
+    console.error("Error al inicializar Firebase. Revisa que tu API Key sea correcta.", error);
+  }
+} else {
+  console.warn("ADVERTENCIA: La configuración de Firebase está incompleta. Edita el archivo 'services/firebase.ts' para añadir tu API Key.");
+}
 
 export { app, auth, db };
