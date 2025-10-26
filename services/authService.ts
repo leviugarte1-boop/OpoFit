@@ -2,6 +2,9 @@ import {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
     signOut,
+    AuthErrorCodes,
+    updateProfile, // Import updateProfile
+    User as FirebaseUser, // Import and alias Firebase User type
 } from 'firebase/auth';
 import {
     doc,
@@ -10,8 +13,6 @@ import {
     collection,
     getDocs,
     updateDoc,
-    query,
-    where,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { User, UserStatus, UserData } from '../types';
@@ -42,36 +43,39 @@ const getInitialUserData = (): UserData => {
 
 export const register = async (userData: { fullName: string; email: string; phone: string; password: string; reason?: string }): Promise<User> => {
     ensureFirebaseIsConfigured();
-    // The `!` tells TypeScript that we've already checked and these are not null.
-    const usersCollection = collection(db!, 'users');
     
-    // Check if user email already exists in Firestore
-    const q = query(usersCollection, where("email", "==", userData.email));
-    const querySnapshot = await getDocs(q);
-    if (!querySnapshot.empty) {
-        throw new Error('El correo electrónico ya está registrado.');
+    try {
+        const userCredential = await createUserWithEmailAndPassword(auth!, userData.email, userData.password);
+        const firebaseUser = userCredential.user;
+
+        // NEW: Update the Auth user's profile with their name for consistency
+        await updateProfile(firebaseUser, { displayName: userData.fullName });
+
+        const newUser: User = {
+            id: firebaseUser.uid,
+            fullName: userData.fullName,
+            email: userData.email,
+            phone: userData.phone,
+            passwordHash: '', // Not needed when using Firebase Auth
+            reason: userData.reason,
+            status: UserStatus.Approved, // User is approved instantly
+            isAdmin: false,
+            data: getInitialUserData(),
+        };
+
+        // Store user profile in Firestore
+        await setDoc(doc(db!, 'users', firebaseUser.uid), newUser);
+        
+        // User is now registered and logged in. Return their profile.
+        return newUser;
+    } catch (error: any) {
+        if (error.code === AuthErrorCodes.EMAIL_EXISTS) {
+            throw new Error('El correo electrónico ya está registrado. Por favor, inicia sesión.');
+        }
+        // You can add more specific error handling here if needed
+        console.error("Registration error:", error);
+        throw new Error('No se pudo completar el registro. Por favor, inténtalo de nuevo.');
     }
-    
-    const userCredential = await createUserWithEmailAndPassword(auth!, userData.email, userData.password);
-    const firebaseUser = userCredential.user;
-
-    const newUser: User = {
-        id: firebaseUser.uid,
-        fullName: userData.fullName,
-        email: userData.email,
-        phone: userData.phone,
-        passwordHash: '', // Not needed when using Firebase Auth
-        reason: userData.reason,
-        status: UserStatus.Approved, // User is approved instantly
-        isAdmin: false,
-        data: getInitialUserData(),
-    };
-
-    // Store user profile in Firestore
-    await setDoc(doc(db!, 'users', firebaseUser.uid), newUser);
-    
-    // User is now registered and logged in. Return their profile.
-    return newUser;
 };
 
 export const login = async (email: string, password: string): Promise<User> => {
@@ -124,6 +128,37 @@ export const getUserProfile = async (userId: string): Promise<User | null> => {
         throw error; // Re-throw other errors
     }
 };
+
+/**
+ * Creates a Firestore user profile for an existing Firebase Auth user.
+ * This acts as a self-healing mechanism if the Firestore profile creation failed during initial registration.
+ */
+export const createProfileForExistingAuthUser = async (firebaseUser: FirebaseUser): Promise<User> => {
+    ensureFirebaseIsConfigured();
+    console.log(`Creating Firestore profile for authenticated user: ${firebaseUser.uid}`);
+    
+    const newUser: User = {
+        id: firebaseUser.uid,
+        fullName: firebaseUser.displayName || 'Usuario Recuperado',
+        email: firebaseUser.email || 'no-email@proporcionado.com',
+        phone: '', // Not available from firebaseUser object
+        passwordHash: '',
+        reason: 'Perfil autogenerado para usuario de Auth existente.',
+        status: UserStatus.Approved,
+        isAdmin: false,
+        data: getInitialUserData(),
+    };
+
+    try {
+        await setDoc(doc(db!, 'users', firebaseUser.uid), newUser);
+        console.log(`Profile created successfully for ${firebaseUser.uid}`);
+        return newUser;
+    } catch (error) {
+        console.error(`CRITICAL: Failed to create recovery profile for ${firebaseUser.uid}`, error);
+        throw new Error('No se pudo crear el perfil de usuario recuperado. Revise las reglas de seguridad de Firestore.');
+    }
+};
+
 
 export const getAllUsers = async (): Promise<User[]> => {
     ensureFirebaseIsConfigured();

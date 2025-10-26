@@ -52,16 +52,24 @@ const App: React.FC = () => {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
                 try {
-                    const userProfile = await authService.getUserProfile(firebaseUser.uid);
+                    let userProfile = await authService.getUserProfile(firebaseUser.uid);
+
+                    // SELF-HEALING: If user exists in Auth but not Firestore, create their profile.
+                    if (!userProfile) {
+                        console.warn(`User profile for ${firebaseUser.uid} not found. Recreating it.`);
+                        userProfile = await authService.createProfileForExistingAuthUser(firebaseUser);
+                    }
+                    
                     if (userProfile) {
                         setCurrentUser(userProfile);
                     } else {
-                        // This case might happen if a user is in Auth but not in Firestore.
+                        // This case should now be extremely rare.
+                        console.error("Failed to get or create a user profile. Logging out.");
                         await authService.logout();
                         setCurrentUser(null);
                     }
                 } catch (error) {
-                    console.error("Error fetching user profile:", error);
+                    console.error("Error fetching or creating user profile:", error);
                     await authService.logout();
                     setCurrentUser(null);
                 }
