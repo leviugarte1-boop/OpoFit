@@ -80,9 +80,25 @@ export const login = async (email: string, password: string): Promise<User> => {
     const userCredential = await signInWithEmailAndPassword(auth!, email, password);
     const firebaseUser = userCredential.user;
 
-    const userProfile = await getUserProfile(firebaseUser.uid);
+    // Retry logic to handle potential race condition between auth and firestore
+    let userProfile: User | null = null;
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        userProfile = await getUserProfile(firebaseUser.uid);
+        if (userProfile) {
+            break; // Success
+        }
+        if (attempt < maxRetries) {
+            const delay = 100 * Math.pow(2, attempt - 1); // Exponential backoff: 100ms, 200ms
+            console.warn(`User profile for ${firebaseUser.uid} not found on attempt ${attempt}. Retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+
     if (!userProfile) {
-        throw new Error('No se encontró el perfil del usuario.');
+        // We still couldn't find the profile. This is now a more definite error.
+        await signOut(auth!); // Log the user out of Auth to prevent a broken state
+        throw new Error('No se encontró el perfil del usuario. Esto puede ocurrir si hay un problema de conexión o si el registro no se completó. Por favor, inténtelo de nuevo.');
     }
 
     if (userProfile.status === UserStatus.Pending) {
