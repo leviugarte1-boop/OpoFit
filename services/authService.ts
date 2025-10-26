@@ -19,7 +19,7 @@ import { SYLLABUS_TOPICS } from '../constants';
 
 const ensureFirebaseIsConfigured = () => {
     if (!auth || !db) {
-        throw new Error('Firebase no está configurado. Por favor, revisa el archivo `services/firebase.ts` y añade tu API key.');
+        throw new Error('Firebase (auth o db) no está inicializado. Por favor, revisa el archivo `services/firebase.ts` y asegúrate de que tu API Key es correcta.');
     }
 };
 

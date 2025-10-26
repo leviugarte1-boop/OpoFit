@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Topic, TopicStatus } from '../types';
 import Card from './Card';
 import ConceptMapModal from './ConceptMapModal';
@@ -25,11 +25,17 @@ interface SyllabusTrackerProps {
 }
 
 const SyllabusTracker: React.FC<SyllabusTrackerProps> = ({ topics, onTopicsChange }) => {
+    const [localTopics, setLocalTopics] = useState<Topic[]>(topics);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
 
+    // Sync local state with props when they change from the parent
+    useEffect(() => {
+        setLocalTopics(topics);
+    }, [topics]);
+
     const handleTopicStatusClick = (topicId: number) => {
-        const newTopics = topics.map(topic => {
+        const newTopics = localTopics.map(topic => {
             if (topic.id === topicId) {
                 const currentIndex = statusOrder.indexOf(topic.status);
                 const nextIndex = (currentIndex + 1) % statusOrder.length;
@@ -37,6 +43,9 @@ const SyllabusTracker: React.FC<SyllabusTrackerProps> = ({ topics, onTopicsChang
             }
             return topic;
         });
+        // Update local state for immediate UI feedback
+        setLocalTopics(newTopics);
+        // Propagate changes to the parent to be saved in Firestore
         onTopicsChange(newTopics);
     };
     
@@ -53,9 +62,9 @@ const SyllabusTracker: React.FC<SyllabusTrackerProps> = ({ topics, onTopicsChang
     };
     
     const getProgress = () => {
-        if (topics.length === 0) return 0;
-        const masteredCount = topics.filter(t => t.status === TopicStatus.Mastered).length;
-        return Math.round((masteredCount / topics.length) * 100);
+        if (!localTopics || localTopics.length === 0) return 0;
+        const masteredCount = localTopics.filter(t => t.status === TopicStatus.Mastered).length;
+        return Math.round((masteredCount / localTopics.length) * 100);
     };
 
     return (
@@ -70,9 +79,9 @@ const SyllabusTracker: React.FC<SyllabusTrackerProps> = ({ topics, onTopicsChang
                 </div>
                  <div className="mt-4 flex space-x-2">
                     {Object.entries(statusConfig).map(([status, config]) => {
-                         const count = topics.filter(t => t.status === status as TopicStatus).length;
+                         const count = localTopics.filter(t => t.status === status as TopicStatus).length;
                          if (count === 0) return null;
-                         const percentage = (count/topics.length) * 100;
+                         const percentage = (count/localTopics.length) * 100;
                          return (
                             <div key={status} className={`${config.color} h-3 rounded-full`} style={{width: `${percentage}%`}} title={`${config.text}: ${count} temas`}></div>
                          );
@@ -81,7 +90,7 @@ const SyllabusTracker: React.FC<SyllabusTrackerProps> = ({ topics, onTopicsChang
             </Card>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {topics.map(topic => (
+                {localTopics.map(topic => (
                     <Card key={topic.id} className="p-4 flex flex-col justify-between">
                          <div
                             className="cursor-pointer flex-grow"

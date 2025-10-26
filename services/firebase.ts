@@ -11,7 +11,7 @@ const firebaseConfig = {
   // El resto de la configuración ya está lista para ti.
   authDomain: "opofit-f43a9.firebaseapp.com",
   projectId: "opofit-f43a9",
-  storageBucket: "opofit-f43a9.appspot.com", // Corregido al formato estándar para el SDK
+  storageBucket: "opofit-f43a9.appspot.com",
   messagingSenderId: "362302821063",
   appId: "1:362302821063:web:0c0e4fd1bef3e94cc9e4e2",
 };
@@ -23,7 +23,7 @@ if (isFirebaseConfigured) {
   try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    // SOLUCIÓN: Usamos initializeFirestore con un caché en memoria.
+    // SOLUCIÓN DEFINITIVA: Usamos initializeFirestore con un caché en memoria.
     // Esto evita los problemas con IndexedDB que causan el error "client is offline".
     db = initializeFirestore(app, {
       localCache: memoryLocalCache(),

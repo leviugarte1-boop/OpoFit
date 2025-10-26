@@ -2,18 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, isFirebaseConfigured } from './services/firebase';
 import { ICONS } from './constants';
-import { User, UserData } from './types';
+import { User, UserData, Topic, PlannerTask } from './types';
 import Dashboard from './components/Dashboard';
 import SyllabusTracker from './components/SyllabusTracker';
 import Planner from './components/Planner';
 import CaseStudies from './components/CaseStudies';
 import CurriculumDesigner from './components/CurriculumDesigner';
-import PhysicalTests from './components/PhysicalTests';
 import Auth from './components/Auth';
 import AdminPanel from './components/AdminPanel';
 import * as authService from './services/authService';
 
-type View = 'dashboard' | 'syllabus' | 'planner' | 'caseStudies' | 'curriculum' | 'physicalTests' | 'admin';
+type View = 'dashboard' | 'syllabus' | 'planner' | 'caseStudies' | 'curriculum' | 'admin';
 
 const FirebaseConfigError: React.FC = () => (
     <div className="flex items-center justify-center min-h-screen bg-amber-50 dark:bg-slate-900 p-4">
@@ -51,13 +50,18 @@ const App: React.FC = () => {
 
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
-                const userProfile = await authService.getUserProfile(firebaseUser.uid);
-                if (userProfile) {
-                    setCurrentUser(userProfile);
-                } else {
-                    // This case might happen if a user is in Auth but not in Firestore.
-                    // For now, we log them out.
-                    authService.logout();
+                try {
+                    const userProfile = await authService.getUserProfile(firebaseUser.uid);
+                    if (userProfile) {
+                        setCurrentUser(userProfile);
+                    } else {
+                        // This case might happen if a user is in Auth but not in Firestore.
+                        await authService.logout();
+                        setCurrentUser(null);
+                    }
+                } catch (error) {
+                    console.error("Error fetching user profile:", error);
+                    await authService.logout();
                     setCurrentUser(null);
                 }
             } else {
@@ -83,9 +87,15 @@ const App: React.FC = () => {
 
     const handleUserDataChange = async (newUserData: Partial<UserData>) => {
         if (currentUser) {
-            const updatedUser = await authService.updateUserData(currentUser.id, newUserData);
-            if (updatedUser) {
-                setCurrentUser(updatedUser);
+            try {
+                const updatedUser = await authService.updateUserData(currentUser.id, newUserData);
+                if (updatedUser) {
+                    // Directly update the state with the returned user object to ensure UI consistency
+                    setCurrentUser(updatedUser);
+                }
+            } catch(error) {
+                console.error("Failed to update user data:", error);
+                // Optionally show an error message to the user
             }
         }
     };
@@ -108,7 +118,9 @@ const App: React.FC = () => {
     }
 
     const renderView = () => {
-        const { tasks, topics } = currentUser.data;
+        // Ensure data exists before rendering children components
+        const tasks = currentUser?.data?.tasks ?? [];
+        const topics = currentUser?.data?.topics ?? [];
 
         switch (currentView) {
             case 'dashboard': 
@@ -122,16 +134,15 @@ const App: React.FC = () => {
             case 'syllabus': 
                 return <SyllabusTracker 
                     topics={topics}
-                    onTopicsChange={(newTopics) => handleUserDataChange({ topics: newTopics })}
+                    onTopicsChange={(newTopics: Topic[]) => handleUserDataChange({ topics: newTopics })}
                 />;
             case 'planner': 
                 return <Planner 
                     tasks={tasks} 
-                    setTasks={(newTasks) => handleUserDataChange({ tasks: newTasks })} 
+                    setTasks={(newTasks: PlannerTask[]) => handleUserDataChange({ tasks: newTasks })} 
                 />;
             case 'caseStudies': return <CaseStudies />;
             case 'curriculum': return <CurriculumDesigner />;
-            case 'physicalTests': return <PhysicalTests />;
             case 'admin': return currentUser.isAdmin ? <AdminPanel /> : <p>Access Denied</p>;
             default: return <Dashboard tasks={tasks} toggleTaskCompletion={(taskId) => {}} />;
         }
@@ -183,7 +194,6 @@ const App: React.FC = () => {
                     <NavLink view="planner" label="Planificador" icon={ICONS.planner} />
                     <NavLink view="caseStudies" label="Supuestos Prácticos" icon={ICONS.caseStudies} />
                     <NavLink view="curriculum" label="Programación" icon={ICONS.curriculum} />
-                    <NavLink view="physicalTests" label="Pruebas Físicas" icon={ICONS.physicalTests} />
                     <NavLink view="admin" label="Admin" icon={ICONS.admin} adminOnly={true} />
                 </ul>
                 <div className="mt-auto">
