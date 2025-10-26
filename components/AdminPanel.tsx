@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { User, UserStatus } from '../types';
 import * as authService from '../services/authService';
 import Card from './Card';
@@ -11,23 +11,42 @@ const statusConfig = {
 
 const AdminPanel: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    const loadUsers = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const allUsers = await authService.getAllUsers();
+            setUsers(allUsers);
+        } catch (error) {
+            console.error("Failed to load users:", error);
+            // Optionally set an error state to show in the UI
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
         loadUsers();
-    }, []);
+    }, [loadUsers]);
 
-    const loadUsers = () => {
-        setUsers(authService.getAllUsers());
-    };
-
-    const handleStatusChange = (userId: string, status: UserStatus) => {
-        authService.updateUserStatus(userId, status);
-        loadUsers();
+    const handleStatusChange = async (userId: string, status: UserStatus) => {
+        await authService.updateUserStatus(userId, status);
+        await loadUsers();
     };
 
     return (
         <div>
-            <h1 className="text-3xl font-bold mb-2 text-slate-800 dark:text-white">Panel de Administración</h1>
+            <div className="flex justify-between items-center mb-2">
+                 <h1 className="text-3xl font-bold text-slate-800 dark:text-white">Panel de Administración</h1>
+                 <button 
+                    onClick={loadUsers} 
+                    disabled={isLoading}
+                    className="px-4 py-2 text-sm font-semibold bg-slate-200 dark:bg-slate-700 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-50"
+                 >
+                    {isLoading ? 'Cargando...' : 'Recargar'}
+                 </button>
+            </div>
             <p className="text-slate-500 dark:text-slate-400 mb-8">Gestiona las solicitudes de acceso y los usuarios de la plataforma.</p>
 
             <Card className="p-0 overflow-x-auto">
@@ -41,7 +60,11 @@ const AdminPanel: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {users.map(user => (
+                        {isLoading ? (
+                            <tr>
+                                <td colSpan={4} className="text-center p-8">Cargando usuarios...</td>
+                            </tr>
+                        ) : users.map(user => (
                             <tr key={user.id} className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600/50">
                                 <td className="px-6 py-4 font-medium text-slate-900 dark:text-white whitespace-nowrap">{user.fullName}</td>
                                 <td className="px-6 py-4">{user.email}</td>

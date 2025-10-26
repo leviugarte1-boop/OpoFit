@@ -1,8 +1,25 @@
+import {
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    signOut,
+} from 'firebase/auth';
+import {
+    getFirestore,
+    doc,
+    setDoc,
+    getDoc,
+    collection,
+    getDocs,
+    updateDoc,
+    query,
+    where,
+} from 'firebase/firestore';
+import { auth } from './firebase';
 import { User, UserStatus, UserData } from '../types';
 import { SYLLABUS_TOPICS } from '../constants';
 
-const DB_KEY = 'opoFitDB';
-const SESSION_KEY = 'opoFitSession';
+const db = getFirestore();
+const usersCollection = collection(db, 'users');
 
 const getInitialUserData = (): UserData => {
     const today = new Date();
@@ -20,108 +37,95 @@ const getInitialUserData = (): UserData => {
     };
 };
 
-export const initializeDB = () => {
-    if (!localStorage.getItem(DB_KEY)) {
-        const adminUser: User = {
-            id: `user-${Date.now()}`,
-            fullName: 'Admin OpoFit',
-            email: 'admin@opofit.com',
-            phone: '600000000',
-            passwordHash: 'admin123',
-            status: UserStatus.Approved,
-            isAdmin: true,
-            data: getInitialUserData(),
-        };
-        localStorage.setItem(DB_KEY, JSON.stringify([adminUser]));
-    }
-};
-
-const getAllUsersFromDB = (): User[] => {
-    const db = localStorage.getItem(DB_KEY);
-    return db ? JSON.parse(db) : [];
-};
-
-const saveUsersToDB = (users: User[]) => {
-    localStorage.setItem(DB_KEY, JSON.stringify(users));
-};
-
-export const register = (userData: { fullName: string; email: string; phone: string; password: string; reason?: string }) => {
-    const users = getAllUsersFromDB();
-    if (users.some(u => u.email === userData.email)) {
+export const register = async (userData: { fullName: string; email: string; phone: string; password: string; reason?: string }) => {
+    // Check if user email already exists in Firestore
+    const q = query(usersCollection, where("email", "==", userData.email));
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
         throw new Error('El correo electrónico ya está registrado.');
     }
+    
+    const userCredential = await createUserWithEmailAndPassword(auth, userData.email, userData.password);
+    const firebaseUser = userCredential.user;
+
     const newUser: User = {
-        id: `user-${Date.now()}`,
+        id: firebaseUser.uid,
         fullName: userData.fullName,
         email: userData.email,
         phone: userData.phone,
-        passwordHash: userData.password, // In a real app, hash this!
+        passwordHash: '', // Not needed when using Firebase Auth
         reason: userData.reason,
         status: UserStatus.Pending,
         isAdmin: false,
         data: getInitialUserData(),
     };
-    users.push(newUser);
-    saveUsersToDB(users);
+
+    // Store user profile in Firestore
+    await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
+    
+    // We sign the user out immediately after registration
+    // so they have to wait for approval.
+    await signOut(auth);
+
     return newUser;
 };
 
-export const login = (email: string, password: string): User => {
-    const users = getAllUsersFromDB();
-    const user = users.find(u => u.email === email);
-    
-    if (!user || user.passwordHash !== password) {
-        throw new Error('Correo electrónico o contraseña incorrectos.');
+export const login = async (email: string, password: string): Promise<User> => {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const firebaseUser = userCredential.user;
+
+    const userProfile = await getUserProfile(firebaseUser.uid);
+    if (!userProfile) {
+        throw new Error('No se encontró el perfil del usuario.');
     }
 
-    if (user.status === UserStatus.Pending) {
+    if (userProfile.status === UserStatus.Pending) {
+        await signOut(auth);
         throw new Error('Su solicitud de acceso está pendiente de aprobación por un administrador.');
     }
 
-    if (user.status === UserStatus.Revoked) {
+    if (userProfile.status === UserStatus.Revoked) {
+        await signOut(auth);
         throw new Error('Su acceso a la plataforma ha sido revocado. Contacte con un administrador.');
     }
     
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
-    return user;
+    return userProfile;
 };
 
-export const logout = () => {
-    sessionStorage.removeItem(SESSION_KEY);
+export const logout = async () => {
+    await signOut(auth);
 };
 
-export const getCurrentUser = (): User | null => {
-    const userJson = sessionStorage.getItem(SESSION_KEY);
-    return userJson ? JSON.parse(userJson) : null;
-};
+export const getUserProfile = async (userId: string): Promise<User | null> => {
+    const userDocRef = doc(db, 'users', userId);
+    const userDocSnap = await getDoc(userDocRef);
 
-export const getAllUsers = (): User[] => {
-    return getAllUsersFromDB();
-};
-
-export const updateUserStatus = (userId: string, newStatus: UserStatus): User | undefined => {
-    const users = getAllUsersFromDB();
-    const userIndex = users.findIndex(u => u.id === userId);
-    if (userIndex !== -1) {
-        users[userIndex].status = newStatus;
-        saveUsersToDB(users);
-        return users[userIndex];
+    if (userDocSnap.exists()) {
+        return userDocSnap.data() as User;
+    } else {
+        return null;
     }
-    return undefined;
 };
 
-export const updateUserData = (userId: string, newUserData: UserData): User | undefined => {
-    const users = getAllUsersFromDB();
-    const userIndex = users.findIndex(u => u.id === userId);
-    if (userIndex !== -1) {
-        users[userIndex].data = newUserData;
-        saveUsersToDB(users);
-        // Also update session if it's the current user
-        const sessionUser = getCurrentUser();
-        if (sessionUser && sessionUser.id === userId) {
-            sessionStorage.setItem(SESSION_KEY, JSON.stringify(users[userIndex]));
-        }
-        return users[userIndex];
+export const getAllUsers = async (): Promise<User[]> => {
+    const querySnapshot = await getDocs(usersCollection);
+    return querySnapshot.docs.map(doc => doc.data() as User);
+};
+
+export const updateUserStatus = async (userId: string, newStatus: UserStatus): Promise<User | undefined> => {
+    const userDocRef = doc(db, 'users', userId);
+    await updateDoc(userDocRef, { status: newStatus });
+    return await getUserProfile(userId) ?? undefined;
+};
+
+export const updateUserData = async (userId: string, newUserData: Partial<UserData>): Promise<User | undefined> => {
+    const userDocRef = doc(db, 'users', userId);
+    const currentUser = await getUserProfile(userId);
+
+    if (currentUser) {
+        const updatedData = { ...currentUser.data, ...newUserData };
+        await updateDoc(userDocRef, { data: updatedData });
+        return { ...currentUser, data: updatedData };
     }
     return undefined;
 };

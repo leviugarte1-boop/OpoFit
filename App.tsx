@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from './services/firebase';
 import { ICONS } from './constants';
 import { User, UserData } from './types';
 import Dashboard from './components/Dashboard';
@@ -6,23 +8,39 @@ import SyllabusTracker from './components/SyllabusTracker';
 import Planner from './components/Planner';
 import CaseStudies from './components/CaseStudies';
 import CurriculumDesigner from './components/CurriculumDesigner';
+import PhysicalTests from './components/PhysicalTests';
 import Auth from './components/Auth';
 import AdminPanel from './components/AdminPanel';
 import * as authService from './services/authService';
 
-type View = 'dashboard' | 'syllabus' | 'planner' | 'caseStudies' | 'curriculum' | 'admin';
+type View = 'dashboard' | 'syllabus' | 'planner' | 'caseStudies' | 'curriculum' | 'physicalTests' | 'admin';
 
 const App: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
     const [currentView, setCurrentView] = useState<View>('dashboard');
     const [isSidebarOpen, setSidebarOpen] = useState(false);
 
     useEffect(() => {
-        authService.initializeDB();
-        const user = authService.getCurrentUser();
-        if (user) {
-            setCurrentUser(user);
-        }
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            if (firebaseUser) {
+                const userProfile = await authService.getUserProfile(firebaseUser.uid);
+                if (userProfile) {
+                    setCurrentUser(userProfile);
+                } else {
+                    // This case might happen if a user is in Auth but not in Firestore.
+                    // For now, we log them out.
+                    authService.logout();
+                    setCurrentUser(null);
+                }
+            } else {
+                setCurrentUser(null);
+            }
+            setIsLoading(false);
+        });
+
+        // Cleanup subscription on unmount
+        return () => unsubscribe();
     }, []);
 
     const handleLoginSuccess = (user: User) => {
@@ -30,20 +48,29 @@ const App: React.FC = () => {
         setCurrentView('dashboard');
     };
 
-    const handleLogout = () => {
-        authService.logout();
+    const handleLogout = async () => {
+        await authService.logout();
         setCurrentUser(null);
+        setCurrentView('dashboard');
     };
 
-    const handleUserDataChange = (newUserData: Partial<UserData>) => {
+    const handleUserDataChange = async (newUserData: Partial<UserData>) => {
         if (currentUser) {
-            const updatedData = { ...currentUser.data, ...newUserData };
-            const updatedUser = authService.updateUserData(currentUser.id, updatedData);
+            const updatedUser = await authService.updateUserData(currentUser.id, newUserData);
             if (updatedUser) {
                 setCurrentUser(updatedUser);
             }
         }
     };
+    
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-slate-100 dark:bg-slate-900">
+                <div className="text-teal-500 text-xl font-semibold">Cargando OpoFit...</div>
+            </div>
+        );
+    }
+
 
     if (!currentUser) {
         return <Auth onLoginSuccess={handleLoginSuccess} />;
@@ -73,6 +100,7 @@ const App: React.FC = () => {
                 />;
             case 'caseStudies': return <CaseStudies />;
             case 'curriculum': return <CurriculumDesigner />;
+            case 'physicalTests': return <PhysicalTests />;
             case 'admin': return currentUser.isAdmin ? <AdminPanel /> : <p>Access Denied</p>;
             default: return <Dashboard tasks={tasks} toggleTaskCompletion={(taskId) => {}} />;
         }
@@ -124,6 +152,7 @@ const App: React.FC = () => {
                     <NavLink view="planner" label="Planificador" icon={ICONS.planner} />
                     <NavLink view="caseStudies" label="Supuestos Prácticos" icon={ICONS.caseStudies} />
                     <NavLink view="curriculum" label="Programación" icon={ICONS.curriculum} />
+                    <NavLink view="physicalTests" label="Pruebas Físicas" icon={ICONS.physicalTests} />
                     <NavLink view="admin" label="Admin" icon={ICONS.admin} adminOnly={true} />
                 </ul>
                 <div className="mt-auto">
