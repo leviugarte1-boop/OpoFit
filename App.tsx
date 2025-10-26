@@ -125,7 +125,8 @@ const App: React.FC = () => {
         switch (currentView) {
             case 'dashboard': 
                 return <Dashboard 
-                    tasks={tasks} 
+                    tasks={tasks}
+                    topics={topics}
                     toggleTaskCompletion={(taskId) => {
                         const newTasks = tasks.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t);
                         handleUserDataChange({ tasks: newTasks });
@@ -144,7 +145,7 @@ const App: React.FC = () => {
             case 'caseStudies': return <CaseStudies />;
             case 'curriculum': return <CurriculumDesigner />;
             case 'admin': return currentUser.isAdmin ? <AdminPanel /> : <p>Access Denied</p>;
-            default: return <Dashboard tasks={tasks} toggleTaskCompletion={(taskId) => {}} />;
+            default: return <Dashboard tasks={tasks} topics={topics} toggleTaskCompletion={(taskId) => {}} />;
         }
     };
     

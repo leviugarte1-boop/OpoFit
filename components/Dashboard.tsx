@@ -3,24 +3,27 @@ import Card from './Card';
 import ProgressBar from './ProgressBar';
 import PomodoroTimer from './PomodoroTimer';
 import { ICONS } from '../constants';
-import { PlannerTask } from '../types';
+import { PlannerTask, Topic, TopicStatus } from '../types';
 
 interface DashboardProps {
     tasks: PlannerTask[];
+    topics: Topic[];
     toggleTaskCompletion: (taskId: string) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ tasks, toggleTaskCompletion }) => {
-    const progressData = {
-        temario: 35,
-        supuestos: 60,
-        programacion: 20,
-    };
+const Dashboard: React.FC<DashboardProps> = ({ tasks, topics, toggleTaskCompletion }) => {
+    // Calculate syllabus progress dynamically
+    const totalTopics = topics.length || 25;
+    const masteredTopicsCount = topics.filter(t => t.status === TopicStatus.Mastered).length;
+    const temarioProgress = totalTopics > 0 ? Math.round((masteredTopicsCount / totalTopics) * 100) : 0;
+    
+    // Static data for now, as these are not yet tracked in the user data model
+    const supuestosProgress = 60; 
+    const programacionProgress = 20;
 
     const today = new Date().toISOString().split('T')[0];
     const todaysTasks = tasks.filter(task => task.date === today);
 
-    // FIX: Changed JSX.Element to React.ReactElement to fix "Cannot find namespace 'JSX'" error.
     const QuickStat: React.FC<{ icon: React.ReactElement; label: string; value: string; progress: number, color: string }> = ({ icon, label, value, progress, color }) => (
         <Card className="p-4 flex flex-col">
           <div className="flex items-center mb-2">
@@ -42,9 +45,9 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, toggleTaskCompletion }) =>
             <p className="text-slate-500 dark:text-slate-400 mb-8">Resumen de tu progreso hacia la plaza. ¡Vamos!</p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <QuickStat icon={ICONS.syllabus} label="Temario Estudiado" value={`${Math.round(25 * (progressData.temario / 100))}/25 Temas`} progress={progressData.temario} color="teal" />
-                <QuickStat icon={ICONS.caseStudies} label="Supuestos Prácticos" value="12/20 Resueltos" progress={progressData.supuestos} color="sky" />
-                <QuickStat icon={ICONS.curriculum} label="Programación Didáctica" value={`${progressData.programacion}% Completa`} progress={progressData.programacion} color="amber" />
+                <QuickStat icon={ICONS.syllabus} label="Temario Estudiado" value={`${masteredTopicsCount}/${totalTopics} Temas`} progress={temarioProgress} color="teal" />
+                <QuickStat icon={ICONS.caseStudies} label="Supuestos Prácticos" value="12/20 Resueltos" progress={supuestosProgress} color="sky" />
+                <QuickStat icon={ICONS.curriculum} label="Programación Didáctica" value={`${programacionProgress}% Completa`} progress={programacionProgress} color="amber" />
                 <div className="md:col-span-2 lg:col-span-1">
                    <PomodoroTimer />
                 </div>
