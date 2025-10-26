@@ -1,6 +1,7 @@
+
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, memoryLocalCache } from 'firebase/firestore';
 
 const firebaseConfig = {
   // ▼▼▼▼ ¡ACCIÓN NECESARIA! Pega tu API Key de Firebase aquí. ▼▼▼▼
@@ -22,10 +23,11 @@ if (isFirebaseConfigured) {
   try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    // Usamos getFirestore() que es la forma estándar y más robusta.
-    // Esto soluciona el problema de "cargando infinito" al permitir que
-    // la autenticación del usuario se guarde correctamente.
-    db = getFirestore(app);
+    // SOLUCIÓN: Usamos initializeFirestore con un caché en memoria.
+    // Esto evita los problemas con IndexedDB que causan el error "client is offline".
+    db = initializeFirestore(app, {
+      localCache: memoryLocalCache(),
+    });
   } catch (error) {
     console.error("Error al inicializar Firebase. Revisa que tu API Key sea correcta.", error);
   }
