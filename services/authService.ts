@@ -12,6 +12,7 @@ import {
     updateDoc,
     query,
     where,
+    onSnapshot, // Import onSnapshot
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { User, UserStatus, UserData } from '../types';
@@ -105,16 +106,31 @@ export const logout = async () => {
     await signOut(auth);
 };
 
-export const getUserProfile = async (userId: string): Promise<User | null> => {
+export const getUserProfile = (userId: string): Promise<User | null> => {
     ensureFirebaseIsConfigured();
     const userDocRef = doc(db!, 'users', userId);
-    const userDocSnap = await getDoc(userDocRef);
 
-    if (userDocSnap.exists()) {
-        return userDocSnap.data() as User;
-    } else {
-        return null;
-    }
+    return new Promise((resolve, reject) => {
+        const unsubscribe = onSnapshot(userDocRef, 
+            (docSnap) => {
+                unsubscribe(); // Immediately unsubscribe to make it a one-time fetch
+                if (docSnap.exists()) {
+                    resolve(docSnap.data() as User);
+                } else {
+                    resolve(null);
+                }
+            }, 
+            (error) => {
+                unsubscribe(); // Unsubscribe on error too
+                console.error("Firestore onSnapshot error in getUserProfile:", error);
+                if (error.code === 'unavailable') {
+                    reject(new Error('No se pudo conectar a la base de datos. El servicio puede estar temporalmente offline o bloqueado por su navegador.'));
+                } else {
+                    reject(error);
+                }
+            }
+        );
+    });
 };
 
 export const getAllUsers = async (): Promise<User[]> => {
