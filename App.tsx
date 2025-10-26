@@ -10,6 +10,7 @@ import CaseStudies from './components/CaseStudies';
 import CurriculumDesigner from './components/CurriculumDesigner';
 import Auth from './components/Auth';
 import AdminPanel from './components/AdminPanel';
+import ConnectionStatus from './components/ConnectionStatus'; // Import the new component
 import * as authService from './services/authService';
 
 type View = 'dashboard' | 'syllabus' | 'planner' | 'caseStudies' | 'curriculum' | 'admin';
@@ -195,6 +196,7 @@ const App: React.FC = () => {
                     <NavLink view="planner" label="Planificador" icon={ICONS.planner} />
                     <NavLink view="caseStudies" label="Supuestos Prácticos" icon={ICONS.caseStudies} />
                     <NavLink view="curriculum" label="Programación" icon={ICONS.curriculum} />
+                    <NavLink view="physicalTests" label="Pruebas Físicas" icon={ICONS.physicalTests} />
                     <NavLink view="admin" label="Admin" icon={ICONS.admin} adminOnly={true} />
                 </ul>
                 <div className="mt-auto">
@@ -215,6 +217,7 @@ const App: React.FC = () => {
             <main className="flex-1 p-4 md:p-8 lg:p-10 overflow-y-auto mt-16 md:mt-0">
                 {renderView()}
             </main>
+            <ConnectionStatus />
         </div>
     );
 };

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Card from './Card';
 import { User } from '../types';
 import * as authService from '../services/authService';
+import ConnectionStatus from './ConnectionStatus';
 
 interface AuthProps {
     onLoginSuccess: (user: User) => void;
@@ -141,6 +142,7 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
                     )}
                 </Card>
             </div>
+            <ConnectionStatus />
         </div>
     );
 };
