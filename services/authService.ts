@@ -12,7 +12,6 @@ import {
     updateDoc,
     query,
     where,
-    onSnapshot, // Import onSnapshot
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { User, UserStatus, UserData } from '../types';
@@ -80,25 +79,12 @@ export const login = async (email: string, password: string): Promise<User> => {
     const userCredential = await signInWithEmailAndPassword(auth!, email, password);
     const firebaseUser = userCredential.user;
 
-    // Retry logic to handle potential race condition between auth and firestore
-    let userProfile: User | null = null;
-    const maxRetries = 3;
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        userProfile = await getUserProfile(firebaseUser.uid);
-        if (userProfile) {
-            break; // Success
-        }
-        if (attempt < maxRetries) {
-            const delay = 100 * Math.pow(2, attempt - 1); // Exponential backoff: 100ms, 200ms
-            console.warn(`User profile for ${firebaseUser.uid} not found on attempt ${attempt}. Retrying in ${delay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-        }
-    }
+    const userProfile = await getUserProfile(firebaseUser.uid);
 
     if (!userProfile) {
-        // We still couldn't find the profile. This is now a more definite error.
+        // We couldn't find the profile. This is a definite error.
         await signOut(auth!); // Log the user out of Auth to prevent a broken state
-        throw new Error('No se encontró el perfil del usuario. Esto puede ocurrir si hay un problema de conexión o si el registro no se completó. Por favor, inténtelo de nuevo.');
+        throw new Error('No se encontró el perfil del usuario. Por favor, verifique sus credenciales e inténtelo de nuevo.');
     }
 
     if (userProfile.status === UserStatus.Pending) {
@@ -119,31 +105,24 @@ export const logout = async () => {
     await signOut(auth);
 };
 
-export const getUserProfile = (userId: string): Promise<User | null> => {
+export const getUserProfile = async (userId: string): Promise<User | null> => {
     ensureFirebaseIsConfigured();
     const userDocRef = doc(db!, 'users', userId);
-
-    return new Promise((resolve, reject) => {
-        const unsubscribe = onSnapshot(userDocRef, 
-            (docSnap) => {
-                unsubscribe(); // Immediately unsubscribe to make it a one-time fetch
-                if (docSnap.exists()) {
-                    resolve(docSnap.data() as User);
-                } else {
-                    resolve(null);
-                }
-            }, 
-            (error) => {
-                unsubscribe(); // Unsubscribe on error too
-                console.error("Firestore onSnapshot error in getUserProfile:", error);
-                if (error.code === 'unavailable') {
-                    reject(new Error('No se pudo conectar a la base de datos. El servicio puede estar temporalmente offline o bloqueado por su navegador.'));
-                } else {
-                    reject(error);
-                }
-            }
-        );
-    });
+    try {
+        const docSnap = await getDoc(userDocRef);
+        if (docSnap.exists()) {
+            return docSnap.data() as User;
+        } else {
+            console.warn(`No user profile found in Firestore for UID: ${userId}`);
+            return null;
+        }
+    } catch (error) {
+        console.error("Error fetching user profile with getDoc:", error);
+        if (error instanceof Error && 'code' in error && error.code === 'unavailable') {
+             throw new Error('No se pudo conectar a la base de datos. Comprueba tu conexión a internet.');
+        }
+        throw error; // Re-throw other errors
+    }
 };
 
 export const getAllUsers = async (): Promise<User[]> => {
@@ -157,7 +136,8 @@ export const updateUserStatus = async (userId: string, newStatus: UserStatus): P
     ensureFirebaseIsConfigured();
     const userDocRef = doc(db!, 'users', userId);
     await updateDoc(userDocRef, { status: newStatus });
-    return await getUserProfile(userId) ?? undefined;
+    const profile = await getUserProfile(userId);
+    return profile ?? undefined;
 };
 
 export const updateUserData = async (userId: string, newUserData: Partial<UserData>): Promise<User | undefined> => {
