@@ -41,7 +41,7 @@ const getInitialUserData = (): UserData => {
     };
 };
 
-export const register = async (userData: { fullName: string; email: string; phone: string; password: string; reason?: string }) => {
+export const register = async (userData: { fullName: string; email: string; phone: string; password: string; reason?: string }): Promise<User> => {
     ensureFirebaseIsConfigured();
     // The `!` tells TypeScript that we've already checked and these are not null.
     const usersCollection = collection(db!, 'users');
@@ -63,7 +63,7 @@ export const register = async (userData: { fullName: string; email: string; phon
         phone: userData.phone,
         passwordHash: '', // Not needed when using Firebase Auth
         reason: userData.reason,
-        status: UserStatus.Pending,
+        status: UserStatus.Approved, // User is approved instantly
         isAdmin: false,
         data: getInitialUserData(),
     };
@@ -71,10 +71,7 @@ export const register = async (userData: { fullName: string; email: string; phon
     // Store user profile in Firestore
     await setDoc(doc(db!, 'users', firebaseUser.uid), newUser);
     
-    // We sign the user out immediately after registration
-    // so they have to wait for approval.
-    await signOut(auth!);
-
+    // User is now registered and logged in. Return their profile.
     return newUser;
 };
 

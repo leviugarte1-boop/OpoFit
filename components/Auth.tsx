@@ -51,22 +51,15 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
         }
         setIsLoading(true);
         try {
-            await authService.register({
+            const newUser = await authService.register({
                 fullName: regFullName,
                 email: regEmail,
                 phone: regPhone,
                 password: regPassword,
                 reason: regReason,
             });
-            setMessage('¡Solicitud enviada! Una vez aprobada su solicitud, podrá acceder con sus credenciales.');
-            setIsLoginView(true);
-            // Clear registration form
-            setRegFullName('');
-            setRegEmail('');
-            setRegPassword('');
-            setRegPhone('');
-            setRegReason('');
-            setRegAgreed(false);
+            // On successful registration, log the user in immediately.
+            onLoginSuccess(newUser);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An unknown error occurred');
         } finally {
@@ -114,14 +107,13 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
                             <p className="text-center text-sm mt-6">
                                 ¿No tienes cuenta?{' '}
                                 <button onClick={() => { setIsLoginView(false); setError(null); setMessage(null); }} className="font-semibold text-teal-600 hover:underline">
-                                    Solicita tu acceso aquí
+                                    Crea una cuenta aquí
                                 </button>
                             </p>
                         </div>
                     ) : (
                         <div>
-                            <h2 className="text-2xl font-bold text-center mb-1">Solicitud de Acceso</h2>
-                            <p className="text-center text-xs text-slate-500 dark:text-slate-400 mb-4">Su registro está sujeto a revisión y aprobación.</p>
+                            <h2 className="text-2xl font-bold text-center mb-4">Crear una Cuenta</h2>
                             <form onSubmit={handleRegister} className="space-y-3">
                                 <input type="text" placeholder="Nombre y Apellidos" value={regFullName} onChange={e => setRegFullName(e.target.value)} required className="w-full p-2 border rounded-md bg-slate-100 dark:bg-slate-700 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-teal-500" />
                                 <input type="email" placeholder="Correo Electrónico" value={regEmail} onChange={e => setRegEmail(e.target.value)} required className="w-full p-2 border rounded-md bg-slate-100 dark:bg-slate-700 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-teal-500" />
@@ -130,14 +122,14 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
                                 <textarea placeholder="Motivo o interés en obtener acceso (Opcional)" value={regReason} onChange={e => setRegReason(e.target.value)} className="w-full p-2 border rounded-md bg-slate-100 dark:bg-slate-700 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-teal-500 h-20 text-sm"></textarea>
                                 
                                 <div className="text-xs text-slate-500 dark:text-slate-400 p-2 bg-slate-100 dark:bg-slate-700/50 rounded-md">
-                                    Al pulsar "Enviar Solicitud", usted acepta que su solicitud puede ser rechazada, que la administración se reserva el derecho de revocar su acceso y que acepta la Política de Privacidad y las Condiciones de Servicio.
+                                    Al pulsar "Crear Cuenta", usted acepta que la administración se reserva el derecho de revocar su acceso y que acepta la Política de Privacidad y las Condiciones de Servicio.
                                 </div>
 
                                 <div className="flex items-center">
                                     <input type="checkbox" id="agree" checked={regAgreed} onChange={e => setRegAgreed(e.target.checked)} className="h-4 w-4 rounded text-teal-500 focus:ring-teal-500 border-slate-300 dark:border-slate-600" />
                                     <label htmlFor="agree" className="ml-2 block text-sm text-slate-700 dark:text-slate-300">Acepto la Política de Privacidad y las Condiciones de Servicio.</label>
                                 </div>
-                                <ActionButton className="bg-sky-500 text-white hover:bg-sky-600">Enviar Solicitud</ActionButton>
+                                <ActionButton className="bg-sky-500 text-white hover:bg-sky-600">Crear Cuenta</ActionButton>
                             </form>
                             <p className="text-center text-sm mt-6">
                                 ¿Ya tienes una cuenta?{' '}
